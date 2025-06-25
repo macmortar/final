@@ -75,12 +75,13 @@ input_data = pd.DataFrame([[
 
 # Adiciona colunas extras com 0 se existirem no modelo
 # (útil se tiverem 24 variáveis no treino por exemplo)
-faltando = set(model.n_features_in_) - set(input_data.columns)
-for col in faltando:
-    input_data[col] = 0
+if hasattr(model, 'feature_names_in_'):
+    colunas_esperadas = list(model.feature_names_in_)
+    for col in colunas_esperadas:
+        if col not in input_data.columns:
+            input_data[col] = 0
+    input_data = input_data[colunas_esperadas]
 
-# Reordena
-input_data = input_data[model.feature_names_in_]
 
 # Previsão
 if st.button("Prever Nota"):
