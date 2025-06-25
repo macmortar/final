@@ -2,59 +2,87 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-import json
 
 st.title("Predição da Nota do Aluno")
 
 # Carregar modelo
 model = joblib.load("model.pkl")
 
-# Carregar colunas usadas no treino
-with open("colunas_modelo.json", "r") as f:
-    colunas_modelo = json.load(f)
+st.subheader("Preencha os dados do aluno:")
 
-# Inputs do usuário
-study_hours = st.number_input("Horas de estudo por dia", min_value=0.0, max_value=24.0, value=2.0)
-social_media_hours = st.number_input("Horas em redes sociais por dia", min_value=0.0, max_value=24.0, value=3.0)
-netflix_hours = st.number_input("Horas assistindo Netflix por dia", min_value=0.0, max_value=24.0, value=2.0)
-sleep_hours = st.number_input("Horas de sono por dia", min_value=0.0, max_value=24.0, value=7.0)
-exercise_frequency = st.slider("Frequência de exercícios físicos (0-10)", 0, 10, 5)
-mental_health_rating = st.slider("Nota de saúde mental (0-10)", 0, 10, 6)
-parental_edu = st.selectbox("Nível educacional dos pais", [
-    "High School", "Bachelor's", "Master's", "PhD", "No Formal Education"
+# Entradas numéricas
+age = st.slider("Idade", 10, 25, 17)
+study_hours = st.slider("Horas de estudo por dia", 0.0, 12.0, 2.0)
+social_media = st.slider("Horas de redes sociais por dia", 0.0, 12.0, 3.0)
+netflix = st.slider("Horas de Netflix por dia", 0.0, 12.0, 2.0)
+attendance = st.slider("Frequência de presença (%)", 0, 100, 90)
+sleep = st.slider("Horas de sono por dia", 0.0, 12.0, 7.0)
+exercise = st.slider("Frequência de exercícios (0-10)", 0, 10, 5)
+mental = st.slider("Nota de saúde mental (0-10)", 0, 10, 6)
+
+# Cálculos derivados
+tempo_tela = social_media + netflix
+razao_estudo_tela = study_hours / tempo_tela if tempo_tela != 0 else 0
+life_style = exercise + mental
+
+# Variáveis categóricas
+gender = st.selectbox("Gênero", ["Feminino", "Masculino", "Outro"])
+job = st.selectbox("Tem trabalho de meio período?", ["Não", "Sim"])
+diet = st.selectbox("Qualidade da dieta", ["Ruim", "Normal", "Boa"])
+internet = st.selectbox("Qualidade da internet", ["Ruim", "Normal", "Boa"])
+extra = st.selectbox("Participa de atividades extracurriculares?", ["Não", "Sim"])
+
+# One-hot encoding manual
+gender_male = 1 if gender == "Masculino" else 0
+gender_other = 1 if gender == "Outro" else 0
+part_time_job_yes = 1 if job == "Sim" else 0
+diet_good = 1 if diet == "Boa" else 0
+diet_poor = 1 if diet == "Ruim" else 0
+internet_good = 1 if internet == "Boa" else 0
+internet_poor = 1 if internet == "Ruim" else 0
+extra_yes = 1 if extra == "Sim" else 0
+
+# Monta o vetor de entrada
+input_data = pd.DataFrame([[
+    age,
+    study_hours,
+    social_media,
+    netflix,
+    attendance,
+    sleep,
+    exercise,
+    mental,
+    tempo_tela,
+    razao_estudo_tela,
+    life_style,
+    gender_male,
+    gender_other,
+    part_time_job_yes,
+    diet_good,
+    diet_poor,
+    internet_good,
+    internet_poor,
+    extra_yes
+]], columns=[
+    "age", "study_hours_per_day", "social_media_hours", "netflix_hours",
+    "attendance_percentage", "sleep_hours", "exercise_frequency",
+    "mental_health_rating", "tempo_tela", "razao_tempotela_estudos", "life_style",
+    "gender_Male", "gender_Other", "part_time_job_Yes",
+    "diet_quality_Good", "diet_quality_Poor",
+    "internet_quality_Good", "internet_quality_Poor",
+    "extracurricular_participation_Yes"
 ])
 
-# Variáveis derivadas
-tempo_tela = social_media_hours + netflix_hours
-razao_tempotela_estudos = study_hours / tempo_tela if tempo_tela != 0 else 0
-life_style = exercise_frequency + mental_health_rating
+# Adiciona colunas extras com 0 se existirem no modelo
+# (útil se tiverem 24 variáveis no treino por exemplo)
+faltando = set(model.n_features_in_) - set(input_data.columns)
+for col in faltando:
+    input_data[col] = 0
 
-# Início do DataFrame com os dados inseridos
-dados = {
-    "study_hours_per_day": study_hours,
-    "social_media_hours": social_media_hours,
-    "netflix_hours": netflix_hours,
-    "sleep_hours": sleep_hours,
-    "exercise_frequency": exercise_frequency,
-    "mental_health_rating": mental_health_rating,
-    "tempo_tela": tempo_tela,
-    "razao_tempotela_estudos": razao_tempotela_estudos,
-    "life_style": life_style,
-    f"parental_education_level_{parental_edu}": 1  # one-hot encoding manual
-}
-
-# Converte para DataFrame
-df_input = pd.DataFrame([dados])
-
-# Adiciona as colunas faltantes com 0
-for col in colunas_modelo:
-    if col not in df_input.columns:
-        df_input[col] = 0
-
-# Garante ordem correta
-df_input = df_input[colunas_modelo]
+# Reordena
+input_data = input_data[model.feature_names_in_]
 
 # Previsão
 if st.button("Prever Nota"):
-    pred = model.predict(df_input)
+    pred = model.predict(input_data)
     st.success(f"Nota prevista no exame: {pred[0]:.2f}")
